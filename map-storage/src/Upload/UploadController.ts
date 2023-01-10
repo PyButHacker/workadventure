@@ -11,6 +11,7 @@ import { passportAuthenticator } from "../Services/Authentication";
 import archiver from "archiver";
 import { fileSystem } from "../fileSystem";
 import StreamZip from "node-stream-zip";
+import { MapValidator, ValidationError } from "@workadventure/map-editor/src/GameMap/MapValidator";
 
 const upload = multer({
     storage: multer.diskStorage({}),
@@ -90,6 +91,35 @@ export class UploadController {
                         res.status(413).send(
                             `File too large. Unzipped files should be less than ${MAX_UNCOMPRESSED_SIZE} bytes.`
                         );
+                        return;
+                    }
+
+                    // Let's validate the archive
+                    const mapValidator = new MapValidator();
+                    const availableFiles = zipEntries.map((entry) => entry.name);
+
+                    const errors: { [key: string]: ValidationError[] } = {};
+
+                    for (const zipEntry of zipEntries) {
+                        if (path.extname(zipEntry.name) !== ".tmj") {
+                            continue;
+                        }
+
+                        const result = mapValidator.validateStringMap(
+                            (await zip.entryData(zipEntry)).toString(),
+                            zipEntry.name,
+                            availableFiles
+                        );
+                        if (!result.ok) {
+                            errors[zipEntry.name] = result.error;
+                        }
+                    }
+
+                    // TODO: we must ignore info!!!!
+                    // TODO: we must ignore info!!!!
+                    // TODO: we must ignore info!!!!
+                    if (Object.keys(errors).length > 0) {
+                        res.status(400).json(errors);
                         return;
                     }
 
